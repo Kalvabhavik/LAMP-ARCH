@@ -7,6 +7,8 @@ import { KIOSKS, type KioskDefinition } from "@/content/quest/kiosks";
 import { MILESTONE } from "@/lib/game/progression";
 import { playSfx } from "@/lib/audio/sfx";
 import { useQuestStore } from "@/stores/quest-store";
+import { SitePopup } from "@/components/quest/SitePopup";
+import type { StationId } from "@/types/game";
 
 function Panel({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
   const closeOverlay = useQuestStore((s) => s.closeOverlay);
@@ -205,6 +207,8 @@ export function QuestOverlayHost() {
       return <HubIntroOverlay />;
     case "info":
       return <InfoOverlay kiosk={(data as KioskDefinition) ?? KIOSKS[0]} />;
+    case "site":
+      return <SitePopup siteId={data?.siteId as StationId} />;
     case "celebration":
       return <CelebrationOverlay title={(data?.title as string) ?? "MISSION COMPLETE"} subtitle={(data?.subtitle as string) ?? ""} />;
     case "completion":

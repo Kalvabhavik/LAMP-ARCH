@@ -5,7 +5,9 @@ export type AchievementKey =
   | "lamp_builder"
   | "documentation_master"
   | "production_ready"
-  | "server_quest_champion";
+  | "server_quest_champion"
+  | "curious_mind"
+  | "campus_scholar";
 
 export type AchievementDefinition = {
   key: AchievementKey;
@@ -23,4 +25,6 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
   { key: "documentation_master", name: "Documentation Master", description: "Submitted a complete procedure.", trigger: "A procedure review with complete = true." },
   { key: "production_ready", name: "Production Ready", description: "Completed the NexaCore mission.", trigger: "NC-001 submission passed." },
   { key: "server_quest_champion", name: "Server Quest Champion", description: "Finished LAMP: The Server Quest.", trigger: "Milestone game:completed." },
+  { key: "curious_mind", name: "Curious Mind", description: "Studied your first training page.", trigger: "Any site-study milestone." },
+  { key: "campus_scholar", name: "Campus Scholar", description: "Studied every training page in the valley.", trigger: "All site-study milestones." },
 ];

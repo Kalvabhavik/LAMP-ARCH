@@ -8,6 +8,7 @@ import { clearProgress, loadProgress, saveProgress } from "@/lib/persist/progres
 import { createInitialProgress, deriveUnlocks } from "@/lib/progress/unlocks";
 import { createShellState, runCommand, type ShellState } from "@/lib/terminal/simulator";
 import { httpTutor } from "@/lib/tutor/http-tutor";
+import { useQuestStore } from "@/stores/quest-store";
 import type {
   LearningMode,
   MissionStep,
@@ -84,7 +85,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     {
       id: "welcome",
       role: "tutor",
-      text: "Welcome to LAMP Quest. Explore the valley with WASD, collect data crystals for bonus XP, and walk up to a glowing station (or click it) to start Learn, Practice, or DIY. Ask me if a step is unclear.",
+      text: "Welcome to LAMP Quest. Explore the valley with WASD, collect data crystals for bonus XP, and visit a training station to open its reference page. Ask me if a step is unclear.",
     },
   ],
   isTutorThinking: false,
@@ -111,21 +112,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   openStation: (id) => {
-    const state = get();
-    if (!state.unlockedStationIds.includes(id)) return;
-    const modes = state.unlockedModes[id] ?? [];
-    const mode = (["learn", "practice", "diy"] as LearningMode[]).find(
-      (candidate) => modes.includes(candidate) && !state.completedMissionIds.includes(`${id}-${candidate}`),
-    ) ?? modes[modes.length - 1];
-    if (!mode) return;
-    const mission = getMissionFor(id, mode);
-    set({
-      activeStationId: id,
-      activeMode: mode,
-      activeMissionId: mission?.id ?? null,
-      currentStepIndex: 0,
-      panel: mode,
-    });
+    useQuestStore.getState().openOverlay("site", { siteId: id });
   },
 
   closePanel: () => {

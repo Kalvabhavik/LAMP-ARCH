@@ -158,11 +158,31 @@ function HubSign({ night }: { night: boolean }) {
         <boxGeometry args={[5.6, 0.9, 0.3]} />
         <meshStandardMaterial color="#0f172a" emissive="#34d399" emissiveIntensity={night ? 0.9 : 0.4} />
       </mesh>
-      <Billboard position={[0, 3.62, 0]}>
-        <Text fontSize={0.5} color="#a7f3d0" anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#022c22">
-          INTRODUCTION HUB
-        </Text>
-      </Billboard>
+      <Text
+        position={[0, 3.62, 0.17]}
+        fontSize={0.32}
+        maxWidth={5.2}
+        color="#a7f3d0"
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.03}
+        outlineColor="#022c22"
+      >
+        INTRODUCTION HUB
+      </Text>
+      <Text
+        position={[0, 3.62, -0.17]}
+        rotation={[0, Math.PI, 0]}
+        fontSize={0.32}
+        maxWidth={5.2}
+        color="#a7f3d0"
+        anchorX="center"
+        anchorY="middle"
+        outlineWidth={0.03}
+        outlineColor="#022c22"
+      >
+        INTRODUCTION HUB
+      </Text>
     </group>
   );
 }
@@ -253,7 +273,6 @@ function spawnFor(state: ReturnType<typeof useQuestStore.getState>["state"], isN
 }
 
 export function Campus() {
-  const unlockedStationIds = useGameStore((state) => state.unlockedStationIds);
   const activeStationId = useGameStore((state) => state.activeStationId);
   const panel = useGameStore((state) => state.panel);
   const openStation = useGameStore((state) => state.openStation);
@@ -294,11 +313,11 @@ export function Campus() {
   const walkToStation = useCallback(
     (stationId: StationId) => {
       const station = WORLD_STATIONS.find((candidate) => candidate.id === stationId);
-      if (!station || !unlockedStationIds.includes(station.id)) return;
+      if (!station) return;
       requestCounter.current += 1;
       setWalkRequest({ id: requestCounter.current, targetId: stationId, position: station.position });
     },
-    [unlockedStationIds],
+    [],
   );
 
   const openMagicBox = useCallback(() => {
@@ -311,14 +330,22 @@ export function Campus() {
   }, [quest]);
 
   const interactables = useMemo<Interactable[]>(() => {
-    const list: Interactable[] = WORLD_STATIONS.filter((s) => unlockedStationIds.includes(s.id)).map((station) => ({
+    const list: Interactable[] = WORLD_STATIONS.map((station) => ({
       id: `station:${station.id}`,
       position: [station.position[0], station.position[2]] as [number, number],
       radius: INTERACT_DISTANCE,
-      label: `Press E to enter ${station.title}`,
+      label: station.id === "lamp" ? "Press E to enter the Introduction Hub" : `Press E to enter ${station.title}`,
       enabled: true,
-      onInteract: () => walkToStation(station.id),
+      onInteract: () => quest.getState().openOverlay("site", { siteId: station.id }),
     }));
+    list.push({
+      id: "hub_arch",
+      position: [0, 6.5],
+      radius: 2.4,
+      label: "Press E to enter the Introduction Hub",
+      enabled: true,
+      onInteract: () => quest.getState().openOverlay("site", { siteId: "lamp" }),
+    });
     list.push({
       id: "magic_box",
       position: MAGIC_BOX_POSITION,
@@ -352,7 +379,7 @@ export function Campus() {
       });
     }
     return list.filter((item) => item.enabled);
-  }, [unlockedStationIds, unlockedCompanies, milestones, walkToStation, openMagicBox, quest]);
+  }, [unlockedCompanies, milestones, openMagicBox, quest]);
 
   const obstacles = useMemo<Obstacle[]>(() => {
     const list: Obstacle[] = [
@@ -472,7 +499,7 @@ export function Campus() {
         <StationPad
           key={station.id}
           station={station}
-          unlocked={unlockedStationIds.includes(station.id)}
+          unlocked={true}
           active={activeStationId === station.id}
           night={night}
           onSelect={() => walkToStation(station.id)}
