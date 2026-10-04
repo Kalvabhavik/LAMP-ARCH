@@ -3,7 +3,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { cameraState, playerState } from "@/lib/world/runtime";
+import { cameraState, interiorState, playerState } from "@/lib/world/runtime";
 import { clamp, getTerrainHeight } from "@/lib/world/terrain";
 
 export function CameraRig() {
@@ -52,6 +52,13 @@ export function CameraRig() {
   useFrame((_, delta) => {
     const { position } = playerState;
     focus.current.set(position.x, position.y + 1.5, position.z);
+    // Interiors: keep the camera close and looking down so walls never block the view.
+    const indoors = interiorState.inside !== "none";
+    const ease = Math.min(1, delta * 3);
+    if (indoors) {
+      cameraState.distance += (Math.min(cameraState.distance, 7) - cameraState.distance) * ease;
+      cameraState.pitch += (Math.max(cameraState.pitch, 0.78) - cameraState.pitch) * ease;
+    }
     const { yaw, pitch, distance } = cameraState;
     goal.current.set(
       focus.current.x + Math.sin(yaw) * Math.cos(pitch) * distance,

@@ -90,6 +90,23 @@ function Minimap() {
         context.strokeRect(sx - 4, sy - 4, 8, 8);
       }
 
+      // Quest structures: house + company buildings.
+      const structures: [number, number, number, string, string][] = [
+        [0, 21, 10, "#a78bfa", "HOME"],
+        [-38, 0, 10, "#f97316", "BF"],
+        [40, -4, 14, "#38bdf8", "NC"],
+      ];
+      for (const [bx, bz, size, color, tag] of structures) {
+        const [sx, sy] = toMap(bx, bz);
+        const half = (size / 2) * scale;
+        context.fillStyle = color;
+        context.fillRect(sx - half, sy - half, half * 2, half * 2);
+        context.fillStyle = "#0f172a";
+        context.font = "bold 6px monospace";
+        context.textAlign = "center";
+        context.fillText(tag, sx, sy + 2);
+      }
+
       const [px, py] = toMap(playerState.position.x, playerState.position.z);
       context.save();
       context.translate(px, py);
@@ -208,7 +225,8 @@ export function ControlsHint() {
     ["Space", "Jump"],
     ["Drag", "Look"],
     ["Scroll", "Zoom"],
-    ["E", "Enter station"],
+    ["E", "Interact"],
+    ["J", "Mission"],
     ["T", "Time of day"],
   ];
   return (

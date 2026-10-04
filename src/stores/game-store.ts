@@ -37,6 +37,7 @@ type GameStore = Progress & {
   lastCommand?: string;
   lastOutput?: string;
   hydrate: () => void;
+  hydrateFromServer: (training: { xp: number; completedMissionIds: string[]; collectedCrystalIds: string[] }) => void;
   openStation: (id: StationId) => void;
   closePanel: () => void;
   setMode: (mode: LearningMode) => void;
@@ -97,6 +98,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       collectedCrystalIds: loaded.collectedCrystalIds,
       hydrated: true,
     });
+  },
+
+  hydrateFromServer: (training) => {
+    const state = get();
+    if (training.xp <= state.xp) return;
+    set({
+      ...withUnlocks(training.xp, training.completedMissionIds),
+      collectedCrystalIds: [...new Set([...state.collectedCrystalIds, ...training.collectedCrystalIds])],
+    });
+    persistSlice({ xp: training.xp, completedMissionIds: training.completedMissionIds, collectedCrystalIds: get().collectedCrystalIds });
   },
 
   openStation: (id) => {

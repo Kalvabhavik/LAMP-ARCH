@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LAMP Quest // Solution Center",
-  description: "A futuristic interactive training simulation for mastering Linux, Apache, MySQL, PHP, and cloud architecture.",
+  title: "LAMP: The Server Quest",
+  description: "An open-world training quest: deploy and document real LAMP stacks for the companies of the valley.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

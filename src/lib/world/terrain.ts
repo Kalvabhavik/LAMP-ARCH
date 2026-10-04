@@ -10,6 +10,14 @@ export const TREE_LINE = 30;
 export const SNOW_LINE = 46;
 export const LAKE = { x: 40, z: 26, radius: 14 };
 
+/** Flat pads for quest structures — terrain blends to 0 inside each radius. */
+export const FLAT_ZONES: { x: number; z: number; radius: number }[] = [
+  { x: 0, z: 21, radius: 10 }, // house
+  { x: -38, z: 0, radius: 12 }, // ByteForge
+  { x: 40, z: -4, radius: 15 }, // NexaCore
+];
+const FLAT_FALLOFF = 8;
+
 const PEAKS = [
   { x: 0, z: -175, radius: 95, height: 100 },
   { x: -125, z: -125, radius: 80, height: 82 },
@@ -77,6 +85,13 @@ export function distanceToLake(x: number, z: number) {
 }
 
 export function getTerrainHeight(x: number, z: number) {
+  // Building pads: dampen terrain height toward 0 inside each zone with ~8u falloff.
+  let flatFactor = 1;
+  for (const zone of FLAT_ZONES) {
+    const d = Math.hypot(x - zone.x, z - zone.z);
+    flatFactor = Math.min(flatFactor, smoothstep(zone.radius, zone.radius + FLAT_FALLOFF, d));
+  }
+  if (flatFactor === 0) return 0;
   const distance = Math.hypot(x, z);
   const rise = smoothstep(CAMPUS_RADIUS, CAMPUS_RADIUS + 20, distance);
   if (rise === 0) return 0;
@@ -89,7 +104,7 @@ export function getTerrainHeight(x: number, z: number) {
     massif += peak.height * Math.exp(-d * d * 2.2);
   }
   const mountains = smoothstep(45, 130, distance) * (range * range * 70 + massif * (0.55 + range * 0.9));
-  const height = rise * (hills + mountains);
+  const height = rise * (hills + mountains) * flatFactor;
 
   const lakeMask = 1 - smoothstep(LAKE.radius * 0.35, LAKE.radius, distanceToLake(x, z));
   return height * (1 - lakeMask) - 3.5 * lakeMask;

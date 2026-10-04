@@ -97,7 +97,7 @@ export function MissionPanel() {
         <div className="rounded-xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/10 to-blue-600/5 p-5 shadow-lg shadow-cyan-400/10">
           <div className="flex items-center gap-2 mb-3">
             <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse"></div>
-            <h3 className="font-bold text-cyan-300 text-lg">What You've Learned</h3>
+            <h3 className="font-bold text-cyan-300 text-lg">What You&apos;ve Learned</h3>
           </div>
           <ul className="mt-4 space-y-2 text-sm">
             {[

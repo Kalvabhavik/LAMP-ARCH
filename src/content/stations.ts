@@ -35,8 +35,8 @@ export const STATIONS: StationConfig[] = [
   },
   {
     id: "lamp",
-    title: "LAMP Hub",
-    subtitle: "How the stack works together",
+    title: "Introduction Hub",
+    subtitle: "Start here: how the world works",
     position: [0, 0, 0],
     themeColor: "#34d399",
     inWorld: true,

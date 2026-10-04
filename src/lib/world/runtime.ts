@@ -7,6 +7,8 @@ export const playerState = {
   stamina: 1,
   sprinting: false,
   grounded: true,
+  /** Pending teleport request — Player consumes it on the next frame. */
+  teleport: null as { x: number; z: number } | null,
 };
 
 export const cameraState = {
@@ -14,6 +16,9 @@ export const cameraState = {
   pitch: 0.42,
   distance: 12,
 };
+
+/** Which interior the player is inside (drives wall/roof fade + camera clamp). */
+export const interiorState: { inside: "none" | "house" | "byteforge" | "nexacore" } = { inside: "none" };
 
 export function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;

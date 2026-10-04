@@ -1,6 +1,10 @@
-# LAMP Quest
+# LAMP: The Server Quest
 
-An interactive 3D educational platform for learning the LAMP stack (Linux, Apache, MySQL, PHP) through gamified missions and simulated terminal exercises.
+A story-driven 3D engineering adventure for the LAMP stack (Linux, Apache, MySQL, PHP). You are a new engineer: register, explore your house, find the Magic Box, visit the Introduction Hub, then take real engineering tickets from **ByteForge Solutions** and **NexaCore Technologies**. You upload your solutions, get them validated automatically, document the procedure, and work your way to harder companies. Progress is saved in Supabase.
+
+The original training stations, simulated terminal and AI tutor are still in the world as practice content.
+
+> **Server Quest technical guide:** [docs/SERVER_QUEST.md](docs/SERVER_QUEST.md) covers the game flow, routes, env vars, database and RLS, validation, scoring, extending companies/missions/characters, local Supabase and deployment.
 
 ## 🎯 Overview
 
@@ -46,7 +50,13 @@ LAMP Quest is an immersive learning experience where users explore a 3D campus, 
    pnpm install
    ```
 
-3. **Run the development server**
+3. **Configure Supabase** (required for the quest — see [docs/SERVER_QUEST.md](docs/SERVER_QUEST.md#9-local-development))
+   ```bash
+   npx supabase start && npx supabase status
+   cp .env.example .env.local   # fill in the Supabase URL, anon key and service-role key
+   ```
+
+4. **Run the development server**
    ```bash
    npm run dev
    # or
@@ -55,7 +65,7 @@ LAMP Quest is an immersive learning experience where users explore a 3D campus, 
    pnpm dev
    ```
 
-4. **Open your browser**
+5. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## 📖 Development Commands
@@ -75,6 +85,9 @@ npx tsc --noEmit
 
 # Linting
 npm run lint
+
+# Unit tests (validation engine, procedure review, progression)
+npm run test
 ```
 
 ## 🏗️ Project Structure

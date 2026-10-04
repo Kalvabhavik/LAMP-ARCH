@@ -132,7 +132,6 @@ export function MapStrip() {
         onClick={() => setPanel(panel === "tutor" ? "none" : "tutor")}
         className="rounded-lg bg-violet-500/20 border border-violet-400/30 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-violet-300 hover:bg-violet-500/30 transition-all duration-300 hover:scale-105"
       >
-        <span className="mr-1">🤖</span>
         Tutor
       </button>
     </div>

@@ -1,26 +1,34 @@
 "use client";
 
+import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { WORLD_STATIONS } from "@/content/stations";
+import { getCharacter } from "@/content/characters";
 import { cameraState, isTypingTarget, playerState } from "@/lib/world/runtime";
 import { PLAY_RADIUS, WATER_LEVEL, getTerrainHeight } from "@/lib/world/terrain";
-import type { StationId } from "@/types/game";
+import { CharacterModel, type LimbRefs } from "./CharacterModel";
 
 export type WalkRequest = {
   id: number;
-  stationId: StationId;
+  targetId: string;
   position: [number, number, number];
 };
 
-export type Obstacle = { x: number; z: number; radius: number };
+/** Circle = soft avoid + hard block. Box = axis-aligned footprint, blocks movement (kept active for auto-walk). */
+export type Obstacle =
+  | { kind?: "circle"; x: number; z: number; radius: number }
+  | { kind: "box"; minX: number; maxX: number; minZ: number; maxZ: number };
 
 type PlayerProps = {
   request: WalkRequest | null;
   frozen: boolean;
   obstacles: Obstacle[];
-  onArrive: (stationId: StationId) => void;
+  characterId: string;
+  spawn: [number, number] | null;
+  nameTag?: string;
+  onArrive: (targetId: string) => void;
   onCancelRequest: () => void;
 };
 
@@ -51,19 +59,26 @@ function shortestAngle(from: number, to: number) {
   return Math.atan2(Math.sin(to - from), Math.cos(to - from));
 }
 
-export function Player({ request, frozen, obstacles, onArrive, onCancelRequest }: PlayerProps) {
+function insideBox(o: { minX: number; maxX: number; minZ: number; maxZ: number }, x: number, z: number, pad = 0.35) {
+  return x > o.minX - pad && x < o.maxX + pad && z > o.minZ - pad && z < o.maxZ + pad;
+}
+
+function hitsObstacle(obstacle: Obstacle, x: number, z: number) {
+  if (obstacle.kind === "box") return insideBox(obstacle, x, z);
+  return Math.hypot(x - obstacle.x, z - obstacle.z) < obstacle.radius;
+}
+
+export function Player({ request, frozen, obstacles, characterId, spawn, nameTag, onArrive, onCancelRequest }: PlayerProps) {
   const root = useRef<THREE.Group>(null);
-  const body = useRef<THREE.Group>(null);
-  const leftLeg = useRef<THREE.Group>(null);
-  const rightLeg = useRef<THREE.Group>(null);
-  const leftArm = useRef<THREE.Group>(null);
-  const rightArm = useRef<THREE.Group>(null);
+  const limbs = useRef<LimbRefs>(null);
   const keys = useRef<Keys>({ forward: false, back: false, left: false, right: false, sprint: false, jump: false });
   const velocity = useRef(new THREE.Vector3());
   const verticalVelocity = useRef(0);
   const stridePhase = useRef(0);
   const exhausted = useRef(false);
   const arrivedRequest = useRef<number | null>(null);
+  const spawned = useRef(false);
+  const character = getCharacter(characterId);
 
   useEffect(() => {
     const handle = (pressed: boolean) => (event: KeyboardEvent) => {
@@ -93,6 +108,18 @@ export function Player({ request, frozen, obstacles, onArrive, onCancelRequest }
   useFrame((_, rawDelta) => {
     const group = root.current;
     if (!group) return;
+    if (!spawned.current && spawn) {
+      spawned.current = true;
+      group.position.set(spawn[0], getTerrainHeight(spawn[0], spawn[1]), spawn[1]);
+      playerState.position.copy(group.position);
+    }
+    if (playerState.teleport) {
+      group.position.set(playerState.teleport.x, getTerrainHeight(playerState.teleport.x, playerState.teleport.z), playerState.teleport.z);
+      playerState.teleport = null;
+      velocity.current.set(0, 0, 0);
+      verticalVelocity.current = 0;
+      playerState.grounded = true;
+    }
     const delta = Math.min(rawDelta, 0.05);
     const position = group.position;
     const input = keys.current;
@@ -122,12 +149,13 @@ export function Player({ request, frozen, obstacles, onArrive, onCancelRequest }
       if (distance <= ARRIVE_DISTANCE) {
         if (arrivedRequest.current !== request.id) {
           arrivedRequest.current = request.id;
-          onArrive(request.stationId);
+          onArrive(request.targetId);
         }
       } else {
         autoWalking = true;
         desired.set(dx / distance, 0, dz / distance);
         for (const obstacle of obstacles) {
+          if (obstacle.kind === "box") continue;
           if (obstacle.x === request.position[0] && obstacle.z === request.position[2]) continue;
           const ox = position.x - obstacle.x;
           const oz = position.z - obstacle.z;
@@ -166,8 +194,11 @@ export function Player({ request, frozen, obstacles, onArrive, onCancelRequest }
       if (ground < WATER_LEVEL + 0.15) return true;
       const step = Math.hypot(x - position.x, z - position.z);
       if (step > 0 && ground - groundHere > MAX_CLIMB * step && playerState.grounded) return true;
-      if (autoWalking) return false;
-      return obstacles.some((obstacle) => Math.hypot(x - obstacle.x, z - obstacle.z) < obstacle.radius);
+      return obstacles.some((obstacle) => {
+        // Auto-walk steers around circle obstacles itself; box colliders (walls) always apply.
+        if (autoWalking && obstacle.kind !== "box") return false;
+        return hitsObstacle(obstacle, x, z);
+      });
     };
 
     const stepX = velocity.current.x * delta;
@@ -215,13 +246,14 @@ export function Player({ request, frozen, obstacles, onArrive, onCancelRequest }
     stridePhase.current += delta * (4 + speed * 1.15) * (speed > 0.2 ? 1 : 0);
     const swing = Math.sin(stridePhase.current) * (0.25 + speedFactor * 0.7) * Math.min(1, speed / 1.5);
     const airborne = !playerState.grounded;
-    if (leftLeg.current && rightLeg.current && leftArm.current && rightArm.current && body.current) {
-      leftLeg.current.rotation.x = airborne ? -0.6 : swing;
-      rightLeg.current.rotation.x = airborne ? 0.3 : -swing;
-      leftArm.current.rotation.x = airborne ? -1.1 : -swing * 0.9;
-      rightArm.current.rotation.x = airborne ? -1.1 : swing * 0.9;
-      body.current.position.y = airborne ? 0 : Math.abs(Math.cos(stridePhase.current)) * 0.06 * Math.min(1, speed / 2);
-      body.current.rotation.x = speedFactor * 0.18;
+    const l = limbs.current;
+    if (l?.leftLeg && l.rightLeg && l.leftArm && l.rightArm && l.body) {
+      l.leftLeg.rotation.x = airborne ? -0.6 : swing;
+      l.rightLeg.rotation.x = airborne ? 0.3 : -swing;
+      l.leftArm.rotation.x = airborne ? -1.1 : -swing * 0.9;
+      l.rightArm.rotation.x = airborne ? -1.1 : swing * 0.9;
+      l.body.position.y = airborne ? 0 : Math.abs(Math.cos(stridePhase.current)) * 0.06 * Math.min(1, speed / 2);
+      l.body.rotation.x = speedFactor * 0.18;
     }
 
     playerState.position.copy(position);
@@ -229,86 +261,16 @@ export function Player({ request, frozen, obstacles, onArrive, onCancelRequest }
     playerState.speed = speed;
   });
 
-  const skin = "#c58c68";
-  const jacket = "#1f4e6e";
-  const accent = "#22d3ee";
-
   return (
-    <group ref={root} name="lamp-player" position={[0, 0, 6]} rotation={[0, Math.PI, 0]}>
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.45, 24]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.18} depthWrite={false} />
-      </mesh>
-      <group ref={body}>
-        <group ref={leftLeg} position={[-0.13, 0.86, 0]}>
-          <mesh position={[0, -0.4, 0]} castShadow>
-            <capsuleGeometry args={[0.095, 0.62, 6, 12]} />
-            <meshStandardMaterial color="#26303a" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, -0.82, 0.07]} castShadow>
-            <boxGeometry args={[0.17, 0.11, 0.32]} />
-            <meshStandardMaterial color="#e8e4dc" roughness={0.7} />
-          </mesh>
-        </group>
-        <group ref={rightLeg} position={[0.13, 0.86, 0]}>
-          <mesh position={[0, -0.4, 0]} castShadow>
-            <capsuleGeometry args={[0.095, 0.62, 6, 12]} />
-            <meshStandardMaterial color="#26303a" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, -0.82, 0.07]} castShadow>
-            <boxGeometry args={[0.17, 0.11, 0.32]} />
-            <meshStandardMaterial color="#e8e4dc" roughness={0.7} />
-          </mesh>
-        </group>
-        <mesh position={[0, 1.2, 0]} castShadow>
-          <capsuleGeometry args={[0.24, 0.42, 8, 16]} />
-          <meshStandardMaterial color={jacket} roughness={0.75} />
-        </mesh>
-        <mesh position={[0, 1.18, 0.235]}>
-          <boxGeometry args={[0.04, 0.5, 0.02]} />
-          <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.6} />
-        </mesh>
-        <mesh position={[0, 1.22, -0.27]} castShadow>
-          <boxGeometry args={[0.36, 0.46, 0.18]} />
-          <meshStandardMaterial color="#3b3f45" roughness={0.85} />
-        </mesh>
-        <group ref={leftArm} position={[-0.32, 1.5, 0]}>
-          <mesh position={[0, -0.3, 0]} rotation={[0, 0, 0.06]} castShadow>
-            <capsuleGeometry args={[0.075, 0.5, 6, 12]} />
-            <meshStandardMaterial color={jacket} roughness={0.75} />
-          </mesh>
-          <mesh position={[0.02, -0.64, 0]} castShadow>
-            <sphereGeometry args={[0.075, 12, 10]} />
-            <meshStandardMaterial color={skin} roughness={0.8} />
-          </mesh>
-        </group>
-        <group ref={rightArm} position={[0.32, 1.5, 0]}>
-          <mesh position={[0, -0.3, 0]} rotation={[0, 0, -0.06]} castShadow>
-            <capsuleGeometry args={[0.075, 0.5, 6, 12]} />
-            <meshStandardMaterial color={jacket} roughness={0.75} />
-          </mesh>
-          <mesh position={[-0.02, -0.64, 0]} castShadow>
-            <sphereGeometry args={[0.075, 12, 10]} />
-            <meshStandardMaterial color={skin} roughness={0.8} />
-          </mesh>
-        </group>
-        <mesh position={[0, 1.62, 0]} castShadow>
-          <cylinderGeometry args={[0.08, 0.09, 0.12, 12]} />
-          <meshStandardMaterial color={skin} roughness={0.8} />
-        </mesh>
-        <mesh position={[0, 1.84, 0]} castShadow>
-          <sphereGeometry args={[0.2, 24, 18]} />
-          <meshStandardMaterial color={skin} roughness={0.75} />
-        </mesh>
-        <mesh position={[0, 1.93, -0.02]} castShadow>
-          <sphereGeometry args={[0.212, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5]} />
-          <meshStandardMaterial color="#2a211d" roughness={0.95} />
-        </mesh>
-        <mesh position={[0, 1.86, 0.17]}>
-          <boxGeometry args={[0.26, 0.06, 0.06]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.2} emissive={accent} emissiveIntensity={0.25} />
-        </mesh>
-      </group>
+    <group ref={root} name="lamp-player" position={[spawn?.[0] ?? 0, 0, spawn?.[1] ?? 6]} rotation={[0, Math.PI, 0]}>
+      <CharacterModel ref={limbs} character={character} />
+      {nameTag ? (
+        <Billboard position={[0, 2.45, 0]}>
+          <Text fontSize={0.22} color="#a5f3fc" anchorX="center" anchorY="middle" outlineWidth={0.015} outlineColor="#020617">
+            {nameTag}
+          </Text>
+        </Billboard>
+      ) : null}
     </group>
   );
 }

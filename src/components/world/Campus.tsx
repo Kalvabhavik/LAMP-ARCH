@@ -3,19 +3,28 @@
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
+import type * as THREE from "three";
 import { WORLD_STATIONS } from "@/content/stations";
+import { COMPANIES } from "@/content/quest/companies";
+import { KIOSKS } from "@/content/quest/kiosks";
+import { COMPANY_SITES, companyObstacles } from "@/content/quest/sites";
+import { clientMilestoneAllowed, MILESTONE } from "@/lib/game/progression";
+import { playSfx } from "@/lib/audio/sfx";
+import { cameraState, isTypingTarget, playerState } from "@/lib/world/runtime";
+import { useGameStore } from "@/stores/game-store";
+import { useQuestStore } from "@/stores/quest-store";
 import { Atmosphere } from "@/components/world/Atmosphere";
 import { CameraRig } from "@/components/world/CameraRig";
+import { CompanyBuilding } from "@/components/world/CompanyBuilding";
 import { Crystals } from "@/components/world/Crystals";
+import { House, HOUSE_OBSTACLES, isInsideHouse } from "@/components/world/House";
+import { MagicBox, MAGIC_BOX_POSITION } from "@/components/world/MagicBox";
+import { Npc } from "@/components/world/Npc";
 import { Player, STATION_OBSTACLES, type Obstacle, type WalkRequest } from "@/components/world/Player";
 import { StationPad } from "@/components/world/StationPad";
 import { Terrain } from "@/components/world/Terrain";
-import { isTypingTarget, playerState } from "@/lib/world/runtime";
-import { useGameStore } from "@/stores/game-store";
 import type { StationId } from "@/types/game";
 
-const ROAD_LENGTH = 48;
 const INTERACT_DISTANCE = 4.5;
 
 const TREE_POSITIONS: [number, number, number][] = [
@@ -24,10 +33,10 @@ const TREE_POSITIONS: [number, number, number][] = [
   [-13, 11, 0.85],
   [14, 8, 1.2],
   [-4, -14, 0.72],
-  [5, 14, 1.05],
   [-19, 3, 1.1],
   [20, -4, 0.95],
-  [-6, 21, 1.0],
+  [-9, 15, 0.9],
+  [9, 15, 1.0],
   [7, -21, 1.1],
 ];
 
@@ -66,24 +75,36 @@ function CampusTree({ position, scale }: { position: [number, number, number]; s
   );
 }
 
-function Road({ rotation }: { rotation: number }) {
+function Road({
+  position,
+  length,
+  rotation,
+  width = 5.2,
+}: {
+  position: [number, number];
+  length: number;
+  rotation: number;
+  width?: number;
+}) {
+  const inner = width * 0.73;
+  const dashes = Math.floor(length / 4);
   return (
-    <group rotation={[0, rotation, 0]}>
+    <group position={[position[0], 0, position[1]]} rotation={[0, rotation, 0]}>
       <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[5.2, ROAD_LENGTH]} />
+        <planeGeometry args={[width, length]} />
         <meshStandardMaterial color="#b3aea4" roughness={0.95} />
       </mesh>
       <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[3.8, ROAD_LENGTH]} />
+        <planeGeometry args={[inner, length]} />
         <meshStandardMaterial color="#3f4447" roughness={0.92} />
       </mesh>
-      {[-1.95, 1.95].map((x) => (
+      {[-inner / 2, inner / 2].map((x) => (
         <mesh key={x} position={[x, 0.06, 0]} receiveShadow>
-          <boxGeometry args={[0.14, 0.1, ROAD_LENGTH]} />
+          <boxGeometry args={[0.14, 0.1, length]} />
           <meshStandardMaterial color="#c9c6bf" roughness={0.9} />
         </mesh>
       ))}
-      {Array.from({ length: 12 }, (_, index) => -22 + index * 4).map((z) => (
+      {Array.from({ length: dashes }, (_, i) => -length / 2 + 2 + i * 4).map((z) => (
         <mesh key={z} position={[0, 0.026, z]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.12, 2]} />
           <meshStandardMaterial color="#e9dfae" roughness={0.7} />
@@ -123,21 +144,112 @@ function Plaza() {
   );
 }
 
-function InteractPrompt({ visible }: { visible: boolean }) {
+/** Arch + sign welcoming players to the Introduction Hub. */
+function HubSign({ night }: { night: boolean }) {
+  return (
+    <group position={[0, 0, 6.5]}>
+      {[-2.4, 2.4].map((x) => (
+        <mesh key={x} position={[x, 1.8, 0]} castShadow>
+          <cylinderGeometry args={[0.14, 0.18, 3.6, 10]} />
+          <meshStandardMaterial color="#166e5a" metalness={0.5} roughness={0.45} />
+        </mesh>
+      ))}
+      <mesh position={[0, 3.6, 0]} castShadow>
+        <boxGeometry args={[5.6, 0.9, 0.3]} />
+        <meshStandardMaterial color="#0f172a" emissive="#34d399" emissiveIntensity={night ? 0.9 : 0.4} />
+      </mesh>
+      <Billboard position={[0, 3.62, 0]}>
+        <Text fontSize={0.5} color="#a7f3d0" anchorX="center" anchorY="middle" outlineWidth={0.03} outlineColor="#022c22">
+          INTRODUCTION HUB
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
+/** Small pedestal + floating label — interactable info kiosk. */
+function Kiosk({ kiosk }: { kiosk: (typeof KIOSKS)[number] }) {
+  const ring = useRef<THREE.MeshStandardMaterial>(null);
+  useFrame(({ clock }) => {
+    if (ring.current) ring.current.emissiveIntensity = 0.7 + Math.sin(clock.elapsedTime * 2) * 0.3;
+  });
+  return (
+    <group position={[kiosk.position[0], 0, kiosk.position[1]]}>
+      <mesh position={[0, 0.55, 0]} castShadow>
+        <cylinderGeometry args={[0.42, 0.55, 1.1, 10]} />
+        <meshStandardMaterial color="#1f2937" roughness={0.6} metalness={0.4} />
+      </mesh>
+      <mesh position={[0, 1.15, 0]} rotation={[-0.5, 0, 0]}>
+        <boxGeometry args={[0.9, 0.06, 0.6]} />
+        <meshStandardMaterial
+          ref={ring}
+          color="#0f172a"
+          emissive={kiosk.accent}
+          emissiveIntensity={0.8}
+        />
+      </mesh>
+      <Billboard position={[0, 2, 0]}>
+        <Text fontSize={0.26} color="#e2e8f0" anchorX="center" anchorY="middle" outlineWidth={0.02} outlineColor="#020617">
+          {kiosk.title}
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
+function InteractPrompt({ label }: { label: string | null }) {
   const group = useRef<THREE.Group>(null);
   useFrame(() => {
     if (!group.current) return;
     group.current.position.set(playerState.position.x, playerState.position.y + 2.6, playerState.position.z);
   });
   return (
-    <group ref={group} visible={visible}>
+    <group ref={group} visible={label !== null}>
       <Billboard>
-        <Text fontSize={0.3} color="#fde68a" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#111827">
-          Press E to enter
+        <Text fontSize={0.28} color="#fde68a" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#111827">
+          {label ?? ""}
         </Text>
       </Billboard>
     </group>
   );
+}
+
+type Interactable = {
+  id: string;
+  position: [number, number];
+  radius: number;
+  label: string;
+  enabled: boolean;
+  onInteract: () => void;
+};
+
+function zoneOf(x: number, z: number): string {
+  if (isInsideHouse(x, z)) return "house";
+  const bf = COMPANY_SITES.byteforge.lobby;
+  if (x > bf.minX && x < bf.maxX && z > bf.minZ && z < bf.maxZ) return "byteforge";
+  const nc = COMPANY_SITES.nexacore.lobby;
+  if (x > nc.minX && x < nc.maxX && z > nc.minZ && z < nc.maxZ) return "nexacore";
+  if (Math.hypot(x, z) < 10) return "intro_hub";
+  if (Math.hypot(x, z - 21) < 12) return "home_exterior";
+  return "outdoor";
+}
+
+function spawnFor(state: ReturnType<typeof useQuestStore.getState>["state"], isNew: boolean): [number, number, number] {
+  if (isNew || !state) return [0, 12, Math.PI];
+  switch (state.player.currentLocation) {
+    case "house":
+      return [0, 19.4, Math.PI];
+    case "intro_hub":
+      return [0, 6, Math.PI];
+    case "byteforge":
+      return [-31.5, 0, -Math.PI / 2];
+    case "nexacore":
+      return [31.5, -4, Math.PI / 2];
+    case "home_exterior":
+      return [0, 14, Math.PI];
+    default:
+      return [0, 12, Math.PI];
+  }
 }
 
 export function Campus() {
@@ -146,69 +258,190 @@ export function Campus() {
   const panel = useGameStore((state) => state.panel);
   const openStation = useGameStore((state) => state.openStation);
   const timeOfDay = useGameStore((state) => state.timeOfDay);
+  const questOverlay = useQuestStore((state) => state.overlay);
+  const gameState = useQuestStore((state) => state.state);
+  const isNewPlayer = useQuestStore((state) => state.isNewPlayer);
   const [walkRequest, setWalkRequest] = useState<WalkRequest | null>(null);
-  const [nearbyStation, setNearbyStation] = useState<StationId | null>(null);
-  const nearbyRef = useRef<StationId | null>(null);
+  const [nearbyLabel, setNearbyLabel] = useState<string | null>(null);
+  const nearbyRef = useRef<Interactable | null>(null);
   const requestCounter = useRef(0);
-  const frozen = panel !== "none";
+  const hubIntroShown = useRef(false);
+  const frozen = panel !== "none" || questOverlay !== "none";
   const night = timeOfDay === "night";
 
-  const obstacles = useMemo<Obstacle[]>(
-    () => [
-      ...STATION_OBSTACLES,
-      ...TREE_POSITIONS.map(([x, z]) => ({ x, z, radius: 0.6 })),
-      ...LAMP_POSTS.map(([x, z]) => ({ x, z, radius: 0.25 })),
-    ],
-    [],
-  );
+  const milestones = useMemo(() => new Set(gameState?.milestones ?? []), [gameState]);
+  const unlockedCompanies = useMemo(() => new Set(gameState?.quest.unlockedCompanies ?? []), [gameState]);
 
-  const walkTo = useCallback(
+  const spawn = useMemo(() => {
+    const [x, z] = spawnFor(gameState, isNewPlayer);
+    return [x, z] as [number, number];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Apply the spawn point/heading + camera once (mutating shared runtime state).
+  useEffect(() => {
+    const [x, z, heading] = spawnFor(useQuestStore.getState().state, useQuestStore.getState().isNewPlayer);
+    playerState.position.set(x, 0, z);
+    playerState.heading = heading;
+    cameraState.yaw = heading + Math.PI;
+  }, []);
+
+  const characterId =
+    gameState?.player.gender === "female" ? "engineer-female" : "engineer-male";
+
+  const quest = useQuestStore;
+
+  const walkToStation = useCallback(
     (stationId: StationId) => {
       const station = WORLD_STATIONS.find((candidate) => candidate.id === stationId);
       if (!station || !unlockedStationIds.includes(station.id)) return;
       requestCounter.current += 1;
-      setWalkRequest({ id: requestCounter.current, stationId, position: station.position });
+      setWalkRequest({ id: requestCounter.current, targetId: stationId, position: station.position });
     },
     [unlockedStationIds],
   );
 
+  const openMagicBox = useCallback(() => {
+    playSfx("chime");
+    const store = quest.getState();
+    if (!store.state?.milestones.includes(MILESTONE.foundMagicBox)) {
+      void store.postMilestone(MILESTONE.foundMagicBox);
+    }
+    store.openOverlay("magic_box");
+  }, [quest]);
+
+  const interactables = useMemo<Interactable[]>(() => {
+    const list: Interactable[] = WORLD_STATIONS.filter((s) => unlockedStationIds.includes(s.id)).map((station) => ({
+      id: `station:${station.id}`,
+      position: [station.position[0], station.position[2]] as [number, number],
+      radius: INTERACT_DISTANCE,
+      label: `Press E to enter ${station.title}`,
+      enabled: true,
+      onInteract: () => walkToStation(station.id),
+    }));
+    list.push({
+      id: "magic_box",
+      position: MAGIC_BOX_POSITION,
+      radius: 2.2,
+      label: "Press E — open the Magic Box",
+      enabled: milestones.has(MILESTONE.enteredHome),
+      onInteract: openMagicBox,
+    });
+    for (const kiosk of KIOSKS) {
+      list.push({
+        id: `kiosk:${kiosk.id}`,
+        position: kiosk.position,
+        radius: kiosk.radius,
+        label: `Press E — ${kiosk.title} info`,
+        enabled: true,
+        onInteract: () => quest.getState().openOverlay("info", kiosk),
+      });
+    }
+    for (const company of COMPANIES) {
+      const site = COMPANY_SITES[company.id];
+      if (!site) continue;
+      const unlocked = unlockedCompanies.has(company.id);
+      list.push({
+        id: `npc:${company.manager.npcId}`,
+        position: site.npc.position,
+        radius: 2.8,
+        label: `Press E to talk to ${company.manager.name}`,
+        enabled: unlocked,
+        onInteract: () =>
+          quest.getState().openOverlay("dialogue", { npcId: company.manager.npcId, companyId: company.id }),
+      });
+    }
+    return list.filter((item) => item.enabled);
+  }, [unlockedStationIds, unlockedCompanies, milestones, walkToStation, openMagicBox, quest]);
+
+  const obstacles = useMemo<Obstacle[]>(() => {
+    const list: Obstacle[] = [
+      ...STATION_OBSTACLES,
+      ...HOUSE_OBSTACLES,
+      ...TREE_POSITIONS.map(([x, z]) => ({ x, z, radius: 0.6 })),
+      ...LAMP_POSTS.map(([x, z]) => ({ x, z, radius: 0.25 })),
+      { x: 0, z: 6.5, radius: 0.4 }, // hub sign posts area
+      { x: -2.4, z: 6.5, radius: 0.35 },
+      { x: 2.4, z: 6.5, radius: 0.35 },
+      { x: MAGIC_BOX_POSITION[0], z: MAGIC_BOX_POSITION[1], radius: 0.7 },
+      ...KIOSKS.map((k) => ({ x: k.position[0], z: k.position[1], radius: 0.6 })),
+    ];
+    for (const company of COMPANIES) {
+      const site = COMPANY_SITES[company.id];
+      if (site) list.push(...companyObstacles(site, !unlockedCompanies.has(company.id)));
+    }
+    return list;
+  }, [unlockedCompanies]);
+
   useEffect(() => {
     const handleTravel = (event: Event) => {
       const stationId = (event as CustomEvent<{ stationId?: StationId }>).detail?.stationId;
-      if (stationId) walkTo(stationId);
+      if (stationId) walkToStation(stationId);
     };
     window.addEventListener("lampquest:travel", handleTravel);
     return () => window.removeEventListener("lampquest:travel", handleTravel);
-  }, [walkTo]);
+  }, [walkToStation]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "KeyE" || frozen || isTypingTarget(event.target)) return;
-      if (nearbyRef.current) walkTo(nearbyRef.current);
+      nearbyRef.current?.onInteract();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [frozen, walkTo]);
+  }, [frozen]);
+
+  // Zone tracking → location sync + entry milestones.
+  const lastZone = useRef<string | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const store = quest.getState();
+      if (store.status !== "ready" || !store.state) return;
+      const zone = zoneOf(playerState.position.x, playerState.position.z);
+      if (zone === lastZone.current) return;
+      lastZone.current = zone;
+      void store.setLocation(zone);
+      const have = new Set(store.state.milestones);
+      const tryPost = (key: string) => {
+        if (!have.has(key) && clientMilestoneAllowed(have, key) === "ok") void store.postMilestone(key);
+      };
+      if (zone === "house") tryPost(MILESTONE.enteredHome);
+      if (zone === "intro_hub") {
+        tryPost(MILESTONE.visitedIntroHub);
+        if (
+          have.has(MILESTONE.foundMagicBox) &&
+          !have.has(MILESTONE.companyJoined("byteforge")) &&
+          !hubIntroShown.current &&
+          store.overlay === "none"
+        ) {
+          hubIntroShown.current = true;
+          store.openOverlay("hub_intro");
+        }
+      }
+      for (const company of COMPANIES) {
+        if (zone === company.id) tryPost(MILESTONE.companyJoined(company.id));
+      }
+    }, 500);
+    return () => clearInterval(timer);
+  }, [quest]);
 
   useFrame(() => {
-    let closest: StationId | null = null;
-    let closestDistance = INTERACT_DISTANCE;
+    let closest: Interactable | null = null;
+    let closestDistance = Infinity;
     if (!frozen) {
-      for (const station of WORLD_STATIONS) {
-        if (!unlockedStationIds.includes(station.id)) continue;
-        const distance = Math.hypot(
-          playerState.position.x - station.position[0],
-          playerState.position.z - station.position[2],
-        );
-        if (distance < closestDistance) {
+      for (const item of interactables) {
+        const distance = Math.hypot(playerState.position.x - item.position[0], playerState.position.z - item.position[1]);
+        if (distance < item.radius && distance < closestDistance) {
           closestDistance = distance;
-          closest = station.id;
+          closest = item;
         }
       }
     }
-    if (nearbyRef.current !== closest) {
+    if (nearbyRef.current?.id !== closest?.id) {
       nearbyRef.current = closest;
-      setNearbyStation(closest);
+      setNearbyLabel(closest?.label ?? null);
+    } else if (closest && nearbyLabel !== closest.label) {
+      setNearbyLabel(closest.label);
     }
   });
 
@@ -216,8 +449,11 @@ export function Campus() {
     <>
       <Atmosphere timeOfDay={timeOfDay} />
       <Terrain />
-      <Road rotation={0} />
-      <Road rotation={Math.PI / 2} />
+      {/* main roads: east–west reaches both company sites; north–south stops at the house path */}
+      <Road position={[0, 0]} length={62} rotation={Math.PI / 2} />
+      <Road position={[0, -4]} length={38} rotation={0} />
+      {/* garden path to the front door */}
+      <Road position={[0, 15]} length={4} rotation={0} width={2.2} />
       <Plaza />
 
       {TREE_POSITIONS.map(([x, z, scale], index) => (
@@ -227,6 +463,11 @@ export function Campus() {
         <LampPost key={index} position={position} night={night} />
       ))}
 
+      <HubSign night={night} />
+      {KIOSKS.map((kiosk) => (
+        <Kiosk key={kiosk.id} kiosk={kiosk} />
+      ))}
+
       {WORLD_STATIONS.map((station) => (
         <StationPad
           key={station.id}
@@ -234,20 +475,40 @@ export function Campus() {
           unlocked={unlockedStationIds.includes(station.id)}
           active={activeStationId === station.id}
           night={night}
-          onSelect={() => walkTo(station.id)}
+          onSelect={() => walkToStation(station.id)}
         />
       ))}
 
+      <House night={night} />
+      <MagicBox opened={milestones.has(MILESTONE.foundMagicBox)} />
+
+      {COMPANIES.map((company) => {
+        const site = COMPANY_SITES[company.id];
+        if (!site) return null;
+        const unlocked = unlockedCompanies.has(company.id);
+        return (
+          <group key={company.id}>
+            <CompanyBuilding company={company} site={site} locked={!unlocked} night={night} />
+            {unlocked && (
+              <Npc npcId={company.manager.npcId} position={site.npc.position} rotation={site.npc.rotation} />
+            )}
+          </group>
+        );
+      })}
+
       <Crystals />
-      <InteractPrompt visible={nearbyStation !== null && !frozen} />
+      <InteractPrompt label={frozen ? null : nearbyLabel} />
 
       <Player
         request={walkRequest}
         frozen={frozen}
         obstacles={obstacles}
-        onArrive={(stationId) => {
+        characterId={characterId}
+        spawn={spawn}
+        nameTag={questOverlay === "dialogue" ? undefined : gameState?.player.name}
+        onArrive={(targetId) => {
           setWalkRequest(null);
-          openStation(stationId);
+          openStation(targetId as StationId);
         }}
         onCancelRequest={() => setWalkRequest(null)}
       />
