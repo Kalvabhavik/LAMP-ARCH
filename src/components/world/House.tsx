@@ -25,7 +25,7 @@ export const HOUSE_OBSTACLES: Obstacle[] = [
   { kind: "box", minX: -4.4, maxX: -2.2, minZ: 18.2, maxZ: 19.6 }, // sofa
   { kind: "box", minX: 0.6, maxX: 2.6, minZ: 18.6, maxZ: 20 }, // table
   { kind: "box", minX: 3.4, maxX: 4.7, minZ: 19, maxZ: 21.6 }, // kitchen counter
-  { kind: "box", minX: -4.5, maxX: -2.4, minZ: 22.6, maxZ: 24.6 }, // bed
+  
   { kind: "box", minX: -0.5, maxX: 1, minZ: 24, maxZ: 24.7 }, // wardrobe
   { kind: "box", minX: 3.4, maxX: 4.7, minZ: 22.5, maxZ: 23.4 }, // bookshelf (hides the box)
 ];
@@ -147,15 +147,7 @@ export function House({ night }: { night: boolean }) {
         <meshStandardMaterial color="#e5e0d5" roughness={0.5} />
       </mesh>
 
-      {/* back room: bed, wardrobe, bookshelf */}
-      <mesh position={[-3.45, 0.3, 23.6]} castShadow>
-        <boxGeometry args={[2, 0.5, 1.9]} />
-        <meshStandardMaterial color="#6d3b52" roughness={0.9} />
-      </mesh>
-      <mesh position={[-4.15, 0.62, 23.6]} castShadow>
-        <boxGeometry args={[0.6, 0.22, 1.5]} />
-        <meshStandardMaterial color="#e8e0d0" roughness={0.9} />
-      </mesh>
+      
       <mesh position={[0.25, 1.05, 24.35]} castShadow>
         <boxGeometry args={[1.4, 2.1, 0.6]} />
         <meshStandardMaterial color="#5e4632" roughness={0.9} />
