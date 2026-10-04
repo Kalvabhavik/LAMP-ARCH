@@ -135,6 +135,7 @@ async function main() {
   await waitForWorld(page);
   await page.waitForTimeout(700);
   await shot(page, "04-world-spawn");
+  await shot(page, "hub-board-front");
   check("registered", (await questState(page))?.state?.player?.name === PLAYER_NAME);
 
   await reloadAndAssert(page, async () => {
@@ -180,6 +181,38 @@ async function main() {
   check("hub_intro overlay", await page.locator("text=Welcome to the Server Quest").count() > 0);
   await page.click("button:has-text('Head to ByteForge')");
   await page.waitForTimeout(400);
+
+  const leaderboardToggle = page.locator("section").filter({ hasText: "Leaderboard" }).getByRole("button");
+  check("leaderboard collapsed by default", await leaderboardToggle.getAttribute("aria-expanded") === "false");
+  await page.keyboard.press("l");
+  await page.waitForFunction(
+    () => Array.from(document.querySelectorAll("section button")).some((button) =>
+      button.textContent?.includes("Leaderboard") && button.getAttribute("aria-expanded") === "true",
+    ),
+  );
+  await page.waitForTimeout(500);
+  await shot(page, "leaderboard-expanded");
+  await page.keyboard.press("l");
+
+  // Training station popup, opened by E while standing on the Linux pad.
+  await teleport(page, -8, -8);
+  await pressE(page);
+  const siteDialog = page.getByRole("dialog", { name: "Linux training page" });
+  await siteDialog.waitFor();
+  const emptyPage = await siteDialog.getByText("No page linked yet").count();
+  if (emptyPage) {
+    check("station E interaction shows empty page placeholder", true);
+    await shot(page, "station-popup-empty-placeholder");
+  } else {
+    check("station E interaction shows linked page iframe", await siteDialog.locator("iframe[title='Linux']").count() === 1);
+    await siteDialog.locator("iframe[title='Linux']").waitFor();
+    await siteDialog.getByText("Loading webpage…", { exact: true }).waitFor({ state: "detached", timeout: 15000 });
+    await shot(page, "station-popup-linked");
+  }
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => !document.querySelector('[role="dialog"][aria-label="Linux training page"]'));
+  check("Escape closes station popup", true);
+
   // info kiosk
   await teleport(page, -5.5, -4.5);
   await pressE(page);

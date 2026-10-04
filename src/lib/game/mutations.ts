@@ -2,8 +2,9 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACHIEVEMENTS, type AchievementKey } from "@/content/quest/achievements";
+import { STATION_SITE_IDS } from "@/content/quest/station-sites";
 import { SCORE_REASON_LABEL, SCORE_RULES, type ScoreReason } from "@/lib/game/scoring";
-import { cascadeMilestones, levelFor } from "@/lib/game/progression";
+import { cascadeMilestones, levelFor, MILESTONE } from "@/lib/game/progression";
 import { ApiError } from "@/lib/api/errors";
 import type { GameEvent } from "@/lib/game/state";
 
@@ -86,6 +87,29 @@ export async function grantAchievement(
   return (data?.length ?? 0) === 1
     ? { type: "achievement", key: def.key, name: def.name, description: def.description }
     : null;
+}
+
+export async function reconcileAchievements(
+  supabase: SupabaseClient,
+  playerId: string,
+  milestones: Set<string>,
+): Promise<GameEvent[]> {
+  const siteMilestones = STATION_SITE_IDS.map((id) => MILESTONE.siteStudied(id));
+  const derivations: [AchievementKey, boolean][] = [
+    ["explorer", milestones.has(MILESTONE.foundMagicBox)],
+    ["lamp_builder", milestones.has(MILESTONE.missionPassed("BF-001"))],
+    ["production_ready", milestones.has(MILESTONE.missionPassed("NC-001"))],
+    ["server_quest_champion", milestones.has(MILESTONE.gameCompleted)],
+    ["curious_mind", siteMilestones.some((milestone) => milestones.has(milestone))],
+    ["campus_scholar", siteMilestones.every((milestone) => milestones.has(milestone))],
+  ];
+  const events: GameEvent[] = [];
+  for (const [key, isEligible] of derivations) {
+    if (!isEligible) continue;
+    const event = await grantAchievement(supabase, playerId, key);
+    if (event) events.push(event);
+  }
+  return events;
 }
 
 export async function awardScore(

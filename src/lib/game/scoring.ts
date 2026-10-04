@@ -6,6 +6,7 @@ export const SCORE_RULES = {
   firstSubmissionSuccess: 100,
   hintUsed: -50,
   failedSubmission: -25,
+  siteStudied: 25,
 } as const;
 
 export type ScoreReason = keyof typeof SCORE_RULES;
@@ -18,6 +19,7 @@ export const SCORE_REASON_LABEL: Record<ScoreReason, string> = {
   firstSubmissionSuccess: "Passed on first submission",
   hintUsed: "Hint unlocked",
   failedSubmission: "Submission needs improvement",
+  siteStudied: "Training page studied",
 };
 
 /** Player score never drops below zero. */

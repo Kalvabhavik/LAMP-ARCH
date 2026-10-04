@@ -34,6 +34,12 @@ describe("clientMilestoneAllowed", () => {
     expect(clientMilestoneAllowed(set(), "game:completed")).toBe("unknown");
     expect(clientMilestoneAllowed(set(), "company:evilcorp:joined")).toBe("unknown");
   });
+
+  it("allows study milestones only for registered players and known stations", () => {
+    expect(clientMilestoneAllowed(set(), "site:linux:studied")).toBe("locked");
+    expect(clientMilestoneAllowed(set("registered"), "site:linux:studied")).toBe("ok");
+    expect(clientMilestoneAllowed(set("registered"), "site:nope:studied")).toBe("unknown");
+  });
 });
 
 describe("cascadeMilestones", () => {

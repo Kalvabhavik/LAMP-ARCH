@@ -8,7 +8,7 @@ import { milestoneLabel } from "@/lib/game/progression";
 import { playSfx } from "@/lib/audio/sfx";
 
 export type QuestStatus = "idle" | "loading" | "needs_registration" | "ready" | "not_configured" | "error";
-export type OverlayId = "none" | "dialogue" | "briefing" | "magic_box" | "hub_intro" | "info" | "celebration" | "completion";
+export type OverlayId = "none" | "dialogue" | "briefing" | "magic_box" | "hub_intro" | "info" | "site" | "celebration" | "completion";
 
 export type Toast = { id: number; kind: "score" | "milestone" | "error" | "info"; text: string };
 export type AchievementPop = { key: string; name: string; description: string };
@@ -97,6 +97,7 @@ export const useQuestStore = create<QuestStore>((set, get) => ({
           ],
         }));
       }
+      applyEvents(set, res.events);
     } catch (err) {
       if (err instanceof ApiError && err.code === "PLAYER_NOT_FOUND") {
         set({ status: "needs_registration", state: null });
