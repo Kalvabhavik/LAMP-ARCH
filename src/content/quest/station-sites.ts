@@ -37,8 +37,8 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     id: "lamp",
     title: "Introduction Hub",
     blurb: "Start here: how the world works",
-    // LINK: paste the Introduction Hub page URL here, e.g. "https://your-site.com/introduction".
-    url: "",
+   
+    url: "https://canva.link/9g2kzmoi2on8b9d",
   },
   aws: {
     id: "aws",
