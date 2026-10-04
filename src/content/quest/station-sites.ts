@@ -38,7 +38,7 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     title: "Introduction Hub",
     blurb: "Start here: how the world works",
    
-    url: "https://canva.link/9g2kzmoi2on8b9d",
+    url: "https://www.canva.com/design/DAHXEMje8qM/SbIUNm8FHFlz4sVhLCHVqw/view",
   },
   aws: {
     id: "aws",
