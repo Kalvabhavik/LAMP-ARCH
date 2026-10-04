@@ -1,10 +1,9 @@
 import { requirePlayer } from "@/lib/supabase/server";
 import { ApiError, okJson, withErrors } from "@/lib/api/errors";
 import { buildGameState, type GameEvent } from "@/lib/game/state";
-import { loadMilestones, recordMilestones, awardScore, syncPlayer } from "@/lib/game/mutations";
+import { loadMilestones, recordMilestones, awardScore, syncPlayer, reconcileAchievements } from "@/lib/game/mutations";
 import { clientMilestoneAllowed } from "@/lib/game/progression";
 import { getQuestMission } from "@/content/quest/missions";
-import { grantAchievement } from "@/lib/game/mutations";
 
 export const runtime = "nodejs";
 
@@ -29,10 +28,10 @@ export const POST = withErrors(async (request: Request) => {
       const verdict = clientMilestoneAllowed(milestones, milestone);
       if (verdict === "unknown") throw new ApiError(400, "UNKNOWN_MILESTONE", `Unknown milestone "${milestone}".`);
       if (verdict === "locked") throw new ApiError(403, "MILESTONE_LOCKED", `Milestone "${milestone}" is not available yet.`);
-      events.push(...(await recordMilestones(supabase, user.id, milestones, [milestone], ctx)));
-      if (milestone === "found_magic_box") {
-        const explorer = await grantAchievement(supabase, user.id, "explorer");
-        if (explorer) events.push(explorer);
+      const milestoneEvents = await recordMilestones(supabase, user.id, milestones, [milestone], ctx);
+      events.push(...milestoneEvents);
+      if (/^site:[^:]+:studied$/.test(milestone) && milestoneEvents.some((event) => event.type === "milestone" && event.key === milestone)) {
+        events.push(await awardScore(supabase, user.id, "siteStudied"));
       }
       break;
     }
@@ -91,6 +90,6 @@ export const POST = withErrors(async (request: Request) => {
   }
 
   await syncPlayer(supabase, user.id, milestones);
+  events.push(...(await reconcileAchievements(supabase, user.id, milestones)));
   return okJson({ state: await buildGameState(supabase, user.id), events });
 });
-

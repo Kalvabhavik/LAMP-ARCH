@@ -1,5 +1,7 @@
 import { COMPANIES, getCompany } from "@/content/quest/companies";
 import { getQuestMission } from "@/content/quest/missions";
+import { STATION_SITE_IDS, STATION_SITES } from "@/content/quest/station-sites";
+import type { StationId } from "@/types/game";
 
 // ---------------------------------------------------------------- milestones
 
@@ -13,6 +15,7 @@ export const MILESTONE = {
   missionAccepted: (id: string) => `mission:${id}:accepted`,
   missionPassed: (id: string) => `mission:${id}:passed`,
   missionDocumented: (id: string) => `mission:${id}:documented`,
+  siteStudied: (id: StationId) => `site:${id}:studied`,
   companyCompleted: (id: string) => `company:${id}:completed`,
   companyUnlocked: (id: string) => `company:${id}:unlocked`,
   gameCompleted: "game:completed",
@@ -42,6 +45,11 @@ export function clientMilestoneAllowed(milestones: Set<string>, milestone: strin
     const company = getCompany(joined[1]);
     if (!company) return "unknown";
     return milestones.has(company.unlockedBy) ? "ok" : "locked";
+  }
+  const studied = /^site:([^:]+):studied$/.exec(milestone);
+  if (studied) {
+    if (!STATION_SITE_IDS.includes(studied[1] as StationId)) return "unknown";
+    return milestones.has(MILESTONE.registered) ? "ok" : "locked";
   }
   return "unknown";
 }
@@ -149,6 +157,10 @@ MILESTONE_LABELS[MILESTONE.companyJoined("nexacore")] = "Joined NexaCore Technol
 
 export function milestoneLabel(key: string): string {
   if (MILESTONE_LABELS[key]) return MILESTONE_LABELS[key];
+  const studied = /^site:([^:]+):studied$/.exec(key);
+  if (studied && STATION_SITE_IDS.includes(studied[1] as StationId)) {
+    return `Studied the ${STATION_SITES[studied[1] as StationId].title} page`;
+  }
   const joined = /^company:([\w-]+):joined$/.exec(key);
   if (joined) {
     const company = getCompany(joined[1]);

@@ -52,7 +52,6 @@ function renderMapBackground() {
 
 function Minimap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const unlocked = useGameStore((state) => state.unlockedStationIds);
   const collected = useGameStore((state) => state.collectedCrystalIds);
 
   useEffect(() => {
@@ -82,8 +81,7 @@ function Minimap() {
 
       for (const station of WORLD_STATIONS) {
         const [sx, sy] = toMap(station.position[0], station.position[2]);
-        const open = unlocked.includes(station.id);
-        context.fillStyle = open ? station.themeColor : "#64748b";
+        context.fillStyle = station.themeColor;
         context.strokeStyle = "#0f172a";
         context.lineWidth = 1.5;
         context.fillRect(sx - 4, sy - 4, 8, 8);
@@ -128,7 +126,7 @@ function Minimap() {
     };
     draw();
     return () => cancelAnimationFrame(frame);
-  }, [unlocked, collected]);
+  }, [collected]);
 
   return (
     <div className="pointer-events-auto relative overflow-hidden rounded-full border-2 border-cyan-400/40 bg-slate-950/80 shadow-lg shadow-cyan-500/10">
@@ -227,6 +225,7 @@ export function ControlsHint() {
     ["Scroll", "Zoom"],
     ["E", "Interact"],
     ["J", "Mission"],
+    ["L", "Leaderboard"],
     ["T", "Time of day"],
   ];
   return (

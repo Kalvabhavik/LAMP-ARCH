@@ -19,6 +19,30 @@ export type ApiResponse = {
   [key: string]: unknown;
 };
 
+export type LeaderboardRow = {
+  rank: number;
+  name: string;
+  totalPoints: number;
+  achievements: number;
+  isYou: boolean;
+};
+
+export type LeaderboardYou = {
+  rank: number;
+  name: string;
+  totalPoints: number;
+  questScore: number;
+  trainingXp: number;
+  achievements: number;
+};
+
+export type LeaderboardResponse = {
+  leaderboard: {
+    top: LeaderboardRow[];
+    you: LeaderboardYou | null;
+  };
+};
+
 async function accessToken(): Promise<string | null> {
   const supabase = getBrowserSupabase();
   if (!supabase) return null;
@@ -49,6 +73,10 @@ export async function api<T extends Record<string, unknown> = ApiResponse>(
     throw new ApiError(res.status, err?.code ?? `HTTP_${res.status}`, err?.message ?? `Request failed (${res.status}).`);
   }
   return json as T & { state?: GameState; events?: GameEvent[] };
+}
+
+export function getLeaderboard(): Promise<LeaderboardResponse> {
+  return api<LeaderboardResponse>("/leaderboard");
 }
 
 /** Multipart upload with real progress (XHR — fetch cannot report upload progress). */

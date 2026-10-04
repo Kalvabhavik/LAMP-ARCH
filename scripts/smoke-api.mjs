@@ -64,6 +64,13 @@ for (const m of ["entered_home", "found_magic_box", "visited_intro_hub"]) {
   check(`milestone ${m}`, r.status === 200 && r.json?.ok);
 }
 
+// --- station study scoring and achievement idempotency
+const studyFirst = await api("/progress", { method: "POST", body: { type: "milestone", milestone: "site:linux:studied" } });
+check("site study milestone awards +25", studyFirst.status === 200 && studyFirst.json?.events?.some((e) => e.type === "score" && e.reason === "siteStudied" && e.delta === 25));
+check("curious_mind achievement granted", studyFirst.json?.state?.achievements?.some((a) => a.key === "curious_mind") || studyFirst.json?.events?.some((e) => e.key === "curious_mind"));
+const studyAgain = await api("/progress", { method: "POST", body: { type: "milestone", milestone: "site:linux:studied" } });
+check("re-posting site study does not award points again", studyAgain.status === 200 && !studyAgain.json?.events?.some((e) => e.type === "score" && e.reason === "siteStudied"));
+
 // --- idempotency: re-post found_magic_box → no second explorer achievement event
 const repost1 = await api("/progress", { method: "POST", body: { type: "milestone", milestone: "found_magic_box" } });
 const repost2 = await api("/progress", { method: "POST", body: { type: "milestone", milestone: "found_magic_box" } });
@@ -162,6 +169,28 @@ const finalState = ncProc.json?.state;
 console.log("\nFinal score:", finalState?.player?.score);
 console.log("Achievements:", (finalState?.achievements ?? []).map((a) => a.key).join(", "));
 console.log("Milestones:", (finalState?.milestones ?? []).join(", "));
+
+// --- leaderboard reflects score, training XP and achievement triggers
+const training = await api("/progress", {
+  method: "POST",
+  body: { type: "training", training: { xp: 321, completedMissionIds: [], collectedCrystalIds: [] } },
+});
+check("training XP sync accepted", training.status === 200 && training.json?.ok);
+const playerNow = await api("/player");
+const leaderboard = await api("/leaderboard");
+const you = leaderboard.json?.leaderboard?.you;
+check(
+  "leaderboard returns caller with correct total points",
+  leaderboard.status === 200 &&
+    you?.name === "Smoke Tester" &&
+    you?.questScore === playerNow.json?.state?.player?.score &&
+    you?.trainingXp === 321 &&
+    you?.totalPoints === you.questScore + you.trainingXp,
+);
+check(
+  "leaderboard achievement count is current",
+  you?.achievements === playerNow.json?.state?.achievements?.length,
+);
 
 // --- RLS: direct client writes must fail; only own rows readable
 const { error: updErr } = await supabase.from("players").update({ score: 99999 }).eq("id", uid);

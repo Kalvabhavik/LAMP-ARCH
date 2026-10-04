@@ -1,6 +1,6 @@
 # LAMP: The Server Quest — technical guide
 
-This guide covers the story-driven quest layer: registration, the house and Magic Box, the Introduction Hub, the company missions (ByteForge → NexaCore), file submissions, validation, procedures and progression. The earlier 3D campus, stations, terminal and tutor are unchanged and still available as in-world training.
+This guide covers the story-driven quest layer: registration, the house and Magic Box, the Introduction Hub, the company missions (ByteForge → NexaCore), file submissions, validation, procedures and progression. The six campus stations open configurable training pages; the terminal and tutor remain available.
 
 ## 1. Game flow
 
@@ -23,6 +23,14 @@ Levels shown in the HUD: 1 Home · 2 Introduction Hub · 3 ByteForge · 4 NexaCo
 
 Progress is saved after every step. Reloading the page or coming back later restores the player's milestones, location, score, achievements, hints, submissions and procedures, and shows "Welcome back, <name>."
 
+## Training station pages
+
+Each station opens its training page in an in-game popup instead of a Learn → Practice → DIY panel. Paste your links into the `url` fields in `src/content/quest/station-sites.ts`; the comment above each field identifies the station. Leave a field blank to show the “No page linked yet” placeholder.
+
+Use HTTPS links. To display a page inside the popup, the target site must allow framing: it must not send `X-Frame-Options: DENY` or `SAMEORIGIN`, and its Content Security Policy `frame-ancestors` directive must allow this app's origin. If it blocks framing, the popup offers **Open in new tab**.
+
+When a linked page is open, a 20-second study timer unlocks **Mark as studied** for +25 points. Each station can be recorded once. Studying the first page grants Curious Mind; studying all six grants Campus Scholar.
+
 ## 2. Routes
 
 | Route | Purpose |
@@ -33,6 +41,7 @@ Progress is saved after every step. Reloading the page or coming back later rest
 | `/portal` | Default Magic Box destination (mission dossier). "Return to Game" → `NEXT_PUBLIC_RETURN_TO_GAME_URL` |
 | `GET /api/health` | Supabase configuration/reachability |
 | `GET /api/player` · `POST /api/player` | Load the full game state · create a player `{name, gender}` |
+| `GET /api/leaderboard` | Top 10 by total points and the caller's row/rank |
 | `POST /api/progress` | `{type:"milestone"\|"location"\|"hint"\|"training", ...}` |
 | `POST /api/missions/:id/accept` | Accept a mission (company must be joined first) |
 | `POST /api/missions/:id/submissions` | Multipart `file`: upload and validate a solution |
@@ -58,7 +67,7 @@ All of these URLs are read in one place: `src/config/game.ts`. `NEXT_PUBLIC_*` v
 
 ## 4. Database (Supabase)
 
-Migration: `supabase/migrations/20261003000000_server_quest.sql`.
+Migrations: `supabase/migrations/20261003000000_server_quest.sql` and `supabase/migrations/20261004000000_leaderboard.sql`.
 
 | Table | Contents |
 | --- | --- |
@@ -68,14 +77,16 @@ Migration: `supabase/migrations/20261003000000_server_quest.sql`.
 | `submissions` | Attempt number, storage path, file name/size/type, status (`checking`/`passed`/`needs_improvement`/`error`), score, feedback JSON |
 | `procedures` | Attempt, format, text, storage path, status (`checking`/`accepted`/`needs_improvement`/`error`), score, review JSON |
 | `achievements` | Unlocked achievements (unique per player and key) |
+| `leaderboard` | Player name, quest score, training XP, total points, achievement count and refresh time |
 | `hint_unlocks` | Hints revealed per mission (each hint is charged once) |
 | `score_events` | Audit log of every score change |
 
 Security model:
 - Players use **Supabase anonymous auth**, so each player has a real `auth.uid()`.
-- **RLS** is enabled on every table. Clients can only `SELECT` their own rows. All insert/update/delete grants are revoked from `anon` and `authenticated`.
+- **RLS** is enabled on every table. Clients can only `SELECT` their own rows, except that every authenticated player may read the leaderboard. All insert/update/delete grants are revoked from `anon` and `authenticated`.
 - All writes go through Next.js route handlers using the service-role key. These handlers verify the bearer token, check progression prerequisites, then write. A player can't skip a level, unlock a company, or change their score by calling Supabase directly.
 - Score changes go through `award_score()`, a `security definer` function that only `service_role` can execute. It updates the score atomically (never below zero) and writes the audit row.
+- `refresh_leaderboard()` and its triggers are security-definer functions with an empty search path. They keep the leaderboard in sync with player score/name/training XP and achievement changes; clients cannot write leaderboard rows.
 - Uploads go to the private `submissions` bucket under `<player_id>/<mission_id>/<row_id>/<file>`. Players can only read their own folder.
 
 ## 5. File submission and validation
@@ -120,8 +131,11 @@ Feedback is specific, for example: "Your implementation is correct, but your pro
 | First submission success | +100 |
 | Hint used (each hint, once) | −50 |
 | Failed submission | −25 |
+| Training page studied (each station, once) | +25 |
 
-Achievements: First Step, Explorer, Linux Engineer, LAMP Builder, Documentation Master, Production Ready, Server Quest Champion (`src/content/quest/achievements.ts`). Only the server grants points and achievements, and only once: each award is tied to a milestone being inserted for the first time.
+Achievements: First Step, Explorer, Linux Engineer, LAMP Builder, Documentation Master, Production Ready, Server Quest Champion, Curious Mind, Campus Scholar (`src/content/quest/achievements.ts`). The server reconciles milestone-derived achievements when loading the player or recording progress.
+
+The leaderboard is available at `GET /api/leaderboard`. It returns the top 10 ordered by total points (quest score plus training XP), along with the authenticated player's own rank and score breakdown.
 
 ## 8. Extending the game
 
