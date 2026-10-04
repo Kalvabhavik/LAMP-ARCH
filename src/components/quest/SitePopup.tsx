@@ -86,7 +86,7 @@ export function SitePopup({ siteId }: { siteId: StationId }) {
                 className="h-full w-full border-0 bg-white"
                 onLoad={() => setLoaded(true)}
                 referrerPolicy="no-referrer"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                
                 src={site.url}
                 title={site.title}
               />
@@ -100,7 +100,7 @@ export function SitePopup({ siteId }: { siteId: StationId }) {
             <div className="flex h-full flex-col items-center justify-center px-6 text-center">
               <h3 className="text-lg font-semibold text-slate-200">No page linked yet</h3>
               <p className="mt-2 max-w-md text-sm text-slate-400">
-                Add the link for {site.title} in src/content/quest/station-sites.ts
+                LINK ERROR 
               </p>
             </div>
           )}
