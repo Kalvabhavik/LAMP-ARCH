@@ -17,7 +17,7 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     title: "Apache",
     blurb: "The web server",
     // LINK: paste the Apache page URL here, e.g. "https://your-site.com/apache".
-    url: "",
+    url: "https://www.canva.com/design/DAHXGMSBH3s/CiGpCkUSbatPOYdRM9GQVQ/view?embed",
   },
   php: {
     id: "php",
@@ -31,7 +31,7 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     title: "MySQL",
     blurb: "The database",
     // LINK: paste the MySQL page URL here, e.g. "https://your-site.com/mysql".
-    url: "",
+    url: "https://www.canva.com/design/DAHXGG49xcw/8YjG4OACejiFe_5xi8uzrQ/view?embed",
   },
   lamp: {
     id: "lamp",
