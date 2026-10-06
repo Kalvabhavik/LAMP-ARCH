@@ -24,7 +24,7 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     title: "PHP",
     blurb: "The application language",
     // LINK: paste the PHP page URL here, e.g. "https://your-site.com/php".
-    url: "",
+    url: "https://www.canva.com/design/DAHXItevzqE/8JVmGpZhivFtfL4AqlCf1w/view?embed",
   },
   mysql: {
     id: "mysql",
@@ -45,7 +45,7 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     title: "AWS Deploy",
     blurb: "Cloud deployment",
     // LINK: paste the AWS page URL here, e.g. "https://your-site.com/aws".
-    url: "",
+    url: "https://www.canva.com/design/DAHXRLYpQro/esADtSTTaH0x8dulODR16Q/view?embed",
   },
 };
 
