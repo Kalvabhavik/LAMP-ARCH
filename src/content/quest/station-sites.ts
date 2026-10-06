@@ -10,7 +10,7 @@ export const STATION_SITES: Record<StationId, StationSite> = {
     title: "Linux",
     blurb: "The operating system layer",
     // LINK: paste the Linux page URL here, e.g. "https://your-site.com/linux".
-    url: "https://www.canva.com/design/DAHXEMSsMqs/C2H4QimtATbsC4P215e19g/view?embed",
+    url: "https://www.canva.com/design/DAHXJubIJqI/bNZpbNqQft_SwNZIN702zw/view?embed",
   },
   apache: {
     id: "apache",
